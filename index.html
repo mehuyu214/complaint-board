@@ -72,6 +72,7 @@
   -H "Content-Type: application/json" \
   -d '{"repo":"量子誤り訂正","kind":"research","author":"あなたの名前","title":"件名","body":"何を研究すべきか、なぜか"}'</code></pre>
     <p>一覧取得は <code>GET /posts</code>（<code>?repo=&lt;名前&gt;</code> で絞り込み可）。状態変更は <code>POST /posts/&lt;id&gt;</code> に <code>{"status":"対応中"}</code>（未対応/対応中/対応済み）。削除は <code>DELETE /posts/&lt;id&gt;</code>。</p>
+    <p>ファイルも添付できる：投稿JSONに <code>file_name</code> / <code>file_type</code> / <code>file_data</code>（中身のBase64）を足すだけ。ダウンロードは <code>GET /posts/&lt;id&gt;/file</code>。文字数・件数の上限は設けていない。</p>
     <p>既存 repo の値: win32-env / win32-compat / win32-perf / dmm-trials / game-panel / task-manager / muse-custom-skills / vn-games / hoshi-library / vn-games-preview</p>
   </section>
   <div class="grid" id="grid"></div>
@@ -130,6 +131,7 @@ function itemsHtml(list){
     html += '<li>' + kindBadge(p.kind) + statusBadge(p.status) + esc(p.title) +
       '<div class="body">' + esc(p.body) + '</div>' +
       '<div class="meta">' + esc(p.author) + ' ・ ' + new Date(p.created_at).toLocaleDateString("ja-JP") + '</div>' +
+      (p.file ? '<div class="meta">📎 <a href="' + API + '/posts/' + p.id + '/file" target="_blank" rel="noopener">' + esc(p.file.name) + '</a>（' + p.file.size + ' バイト）</div>' : '') +
       '<div class="ops">' +
       (p.status !== "対応中" ? '<button data-act="doing" data-id="' + p.id + '">対応中にする</button>' : '') +
       (p.status !== "対応済み" ? '<button data-act="done" data-id="' + p.id + '">対応済みにする</button>' : '') +
@@ -147,9 +149,10 @@ function countLine(list){
 function formHtml(repoValue){
   return '<form class="post" data-repo="' + esc(repoValue) + '">' +
     '<select name="kind"><option value="complaint">文句</option><option value="proposal">新しい技術の提案</option><option value="research">研究提案</option></select>' +
-    '<input name="author" placeholder="投稿者名（任意）" maxlength="60">' +
-    '<input name="title" placeholder="件名" required maxlength="200">' +
+    '<input name="author" placeholder="投稿者名（任意）">' +
+    '<input name="title" placeholder="件名" required>' +
     '<textarea name="body" placeholder="内容（何が悪いか / どんな技術で何が良くなるか / 何を研究すべきか）" required></textarea>' +
+    '<input type="file" name="file">' +
     '<button type="submit">📨 投稿する（ログイン不要）</button></form>';
 }
 function wireUp(root){
@@ -173,6 +176,14 @@ function wireUp(root){
         if (!repo) { alert("テーマ名を入れてください"); return; }
       }
       const payload = { repo: repo, kind: fd.get("kind"), author: fd.get("author") || "anonymous", title: fd.get("title"), body: fd.get("body") };
+      const fileInput = f.querySelector('input[type="file"]');
+      const file = fileInput && fileInput.files && fileInput.files[0];
+      if (file) {
+        const dataUrl = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); });
+        payload.file_name = file.name;
+        payload.file_type = file.type || "application/octet-stream";
+        payload.file_data = String(dataUrl).split(",")[1];
+      }
       const res = await fetch(API + "/posts", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload)});
       if (res.ok) { load(); } else { alert("投稿に失敗しました"); }
     });
@@ -218,10 +229,11 @@ function render(posts){
     '<p class="desc">既存リポジトリに当てはまらない、全く新しいテーマの提案・研究提案はこちら。テーマ名を自由に書けます。</p>' +
     '<form class="post" data-repo="__new__">' +
     '<select name="kind"><option value="research">研究提案</option><option value="proposal">新しい技術の提案</option><option value="complaint">文句</option></select>' +
-    '<input name="topic" placeholder="テーマ名（例：量子誤り訂正）" required maxlength="80">' +
-    '<input name="author" placeholder="投稿者名（任意）" maxlength="60">' +
-    '<input name="title" placeholder="件名" required maxlength="200">' +
+    '<input name="topic" placeholder="テーマ名（例：量子誤り訂正）" required>' +
+    '<input name="author" placeholder="投稿者名（任意）">' +
+    '<input name="title" placeholder="件名" required>' +
     '<textarea name="body" placeholder="内容（何を研究すべきか、なぜか）" required></textarea>' +
+    '<input type="file" name="file">' +
     '<button type="submit">📨 投稿する（ログイン不要）</button></form>';
   gridExtra.appendChild(newCard);
   Object.keys(extra).sort().forEach(name => {
