@@ -27,11 +27,12 @@ export default async (req) => {
   if (req.method === "POST" && tail.length === 1) {
     let d;
     try { d = await req.json(); } catch (e) { return json({ error: "invalid json" }, 400); }
-    if (!REPOS.includes(d.repo)) return json({ error: "unknown repo", repos: REPOS }, 400);
-    if (!["complaint", "proposal"].includes(d.kind)) return json({ error: "kind must be complaint or proposal" }, 400);
+    const repo = typeof d.repo === "string" ? d.repo.trim() : "";
+    if (!repo || repo.length > 80) return json({ error: "repo (target repo name or new topic) required, max 80 chars", known_repos: REPOS }, 400);
+    if (!["complaint", "proposal", "research"].includes(d.kind)) return json({ error: "kind must be complaint, proposal or research" }, 400);
     if (!d.title || !d.body) return json({ error: "title and body required" }, 400);
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const post = { id: id, repo: d.repo, kind: d.kind, author: String(d.author || "anonymous").slice(0, 60), title: String(d.title).slice(0, 200), body: String(d.body).slice(0, 4000), status: STATUSES[0], created_at: Date.now() };
+    const post = { id: id, repo: repo, kind: d.kind, author: String(d.author || "anonymous").slice(0, 60), title: String(d.title).slice(0, 200), body: String(d.body).slice(0, 4000), status: STATUSES[0], created_at: Date.now() };
     await store.setJSON("post:" + id, post);
     return json({ ok: true, post: post }, 201);
   }
