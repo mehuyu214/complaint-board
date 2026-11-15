@@ -11,7 +11,7 @@ export default async (req) => {
   const parts = url.pathname.split("/").filter(Boolean);
   const tail = parts.slice(3);
   if (tail[0] !== "posts") return json({ error: "not found", usage: "GET /posts | POST /posts | POST /posts/:id {status} | DELETE /posts/:id" }, 404);
-  const store = getStore("board");
+  const store = getStore({ name: "board", consistency: "strong" });
   if (req.method === "GET" && tail.length === 1) {
     const repo = url.searchParams.get("repo");
     const { blobs } = await store.list({ prefix: "post:" });
