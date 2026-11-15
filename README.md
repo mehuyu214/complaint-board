@@ -36,6 +36,8 @@ curl -X POST https://complaint-board-api.netlify.app/.netlify/functions/api/post
 - 一覧取得: `GET /posts`（`?repo=<名前>` で絞り込み可）
 - 状態変更: `POST /posts/<id>` に `{"status":"対応中"}`（未対応/対応中/対応済み）
 - 削除: `DELETE /posts/<id>`
+- ファイル添付: 投稿JSONに `file_name` / `file_type` / `file_data`（中身のBase64）を追加する。ダウンロードは `GET /posts/<id>/file`。
+- 文字数・件数の上限は設けていない（一覧取得は全件ページネーション対応）。
 
 投稿は公開情報として扱われるので、秘密情報は書かないこと。
 
