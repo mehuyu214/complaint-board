@@ -5,8 +5,9 @@ const STATUSES = ["未対応", "対応中", "対応済み"];
 const KINDS = ["complaint", "proposal", "research"];
 
 function json(data, status) {
-  return new Response(JSON.stringify(data), {
-    status: status || 200,
+  const s = status || 200;
+  return new Response(s === 204 ? null : JSON.stringify(data), {
+    status: s,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
@@ -28,7 +29,16 @@ async function listAllKeys(store, prefix) {
 }
 
 export default async (req) => {
-  if (req.method === "OPTIONS") return json({}, 204);
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
+    });
+  }
   const store = getStore({ name: "board", consistency: "strong" });
   const url = new URL(req.url);
   const seg = url.pathname.split("/").filter(Boolean);
