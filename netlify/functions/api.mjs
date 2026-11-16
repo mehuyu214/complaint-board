@@ -93,12 +93,14 @@ export default async (req) => {
       await store.setJSON("post-" + id, post);
       return json({ ok: true, post: post }, 201);
     }
-    // POST /posts/:id  (status change)
+    // POST /posts/:id  (status / repo / kind update)
     if (req.method === "POST" && rest.length === 1) {
       const d = await req.json();
       const post = await store.get("post-" + rest[0], { type: "json" });
       if (!post) return json({ error: "not found" }, 404);
       if (STATUSES.includes(d.status)) post.status = d.status;
+      if (typeof d.repo === "string" && d.repo.trim()) post.repo = d.repo.trim();
+      if (KINDS.includes(d.kind)) post.kind = d.kind;
       await store.setJSON("post-" + rest[0], post);
       return json({ ok: true, post: post });
     }
