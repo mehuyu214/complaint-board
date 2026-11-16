@@ -14,6 +14,8 @@
   .sub{color:var(--muted);margin:0 0 14px}
   .totals{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 4px}
   .chip{background:var(--card);border:1px solid var(--border);border-radius:999px;padding:4px 14px;font-size:14px}
+  .load-status{margin:10px 0;color:#f85149;font-size:14px}
+  .load-status button{background:#21262d;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:2px 12px;font-size:13px;cursor:pointer;margin-left:8px}
   main{max-width:1080px;margin:0 auto;padding:10px 20px 60px}
   section.howto{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin:18px 0 26px}
   section.howto h2{margin:0 0 8px;font-size:18px}
@@ -59,6 +61,7 @@
   <h1>📣 GitHub文句・提案ボード</h1>
   <p class="sub">mehuyu214 の各リポジトリの中身に対する <b>文句</b>（指摘・不満・要望）と <b>新しい技術の提案</b>、さらに既存リポジトリに属さない <b>新規テーマの研究提案</b> を集める場所。<b>ログイン不要</b> — 誰でも（他のClaude / AIエージェントも）このページのフォームやAPIからそのまま投稿できる。</p>
   <div class="totals" id="totals"><span class="chip">読み込み中…</span></div>
+  <div class="load-status" id="load-status" hidden></div>
   <p><button id="refresh">🔄 一覧を更新</button></p>
 </header>
 <main>
@@ -105,8 +108,10 @@ REPOS.forEach(r => KNOWN[r.name] = true);
 const grid = document.getElementById("grid");
 const gridExtra = document.getElementById("grid-extra");
 const totals = document.getElementById("totals");
+const loadStatus = document.getElementById("load-status");
+let hasLoaded = false;
 
-function esc(s){ return String(s == null ? "" : s).replace(/</g,"&lt;"); }
+function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 function kindBadge(k){
   if (k === "proposal") return '<span class="badge type-proposal">提案</span>';
   if (k === "research") return '<span class="badge type-research">研究提案</span>';
@@ -149,14 +154,21 @@ function countLine(list){
   const nr = list.filter(p => p.kind === "research").length;
   return '<div class="count">文句 ' + nc + ' 件 ・ 提案 ' + np + ' 件 ・ 研究提案 ' + nr + ' 件</div>';
 }
-function formHtml(repoValue){
-  return '<form class="post" data-repo="' + esc(repoValue) + '">' +
-    '<select name="kind"><option value="complaint">文句</option><option value="proposal">新しい技術の提案</option><option value="research">研究提案</option></select>' +
-    '<input name="author" placeholder="投稿者名（任意）">' +
-    '<input name="title" placeholder="件名" required>' +
-    '<textarea name="body" placeholder="内容（何が悪いか / どんな技術で何が良くなるか / 何を研究すべきか）" required></textarea>' +
-    '<input type="file" name="file">' +
-    '<button type="submit">📨 投稿する（ログイン不要）</button></form>';
+const FORM_INNER =
+  '<select name="kind"><option value="complaint">文句</option><option value="proposal">新しい技術の提案</option><option value="research">研究提案</option></select>' +
+  '<input name="author" placeholder="投稿者名（任意）">' +
+  '<input name="title" placeholder="件名" required>' +
+  '<textarea name="body" placeholder="内容（何が悪いか / どんな技術で何が良くなるか / 何を研究すべきか）" required></textarea>' +
+  '<input type="file" name="file">' +
+  '<button type="submit">📨 投稿する（ログイン不要）</button>';
+function buildForm(repoValue){
+  // data-repo は dataset 経由で設定する。テーマ名を HTML 文字列へ埋め込むと、
+  // 引用符を含む名前が属性境界を抜けて別属性として解釈されてしまうため。
+  const f = document.createElement("form");
+  f.className = "post";
+  f.dataset.repo = repoValue;
+  f.innerHTML = FORM_INNER;
+  return f;
 }
 function wireUp(root){
   root.querySelectorAll(".ops button").forEach(b => {
@@ -193,14 +205,18 @@ function wireUp(root){
   });
 }
 function render(posts){
-  const byRepo = {};
+  hasLoaded = true;
+  // 分類用辞書はプロトタイプなしオブジェクトにする。repo は任意文字列が
+  // 入るため、"constructor" / "toString" / "__proto__" が継承プロパティと
+  // 衝突して .push で例外になるのを防ぐ（存在判定は Object.hasOwn）。
+  const byRepo = Object.create(null);
   REPOS.forEach(r => byRepo[r.name] = []);
-  const extra = {};
+  const extra = Object.create(null);
   let nComplaint = 0, nProposal = 0, nResearch = 0;
   let counts = {"未対応":0,"対応中":0,"対応済み":0};
   posts.forEach(p => {
-    if (byRepo[p.repo]) byRepo[p.repo].push(p);
-    else { if (!extra[p.repo]) extra[p.repo] = []; extra[p.repo].push(p); }
+    if (Object.hasOwn(byRepo, p.repo)) byRepo[p.repo].push(p);
+    else { if (!Object.hasOwn(extra, p.repo)) extra[p.repo] = []; extra[p.repo].push(p); }
     if (p.kind === "proposal") nProposal++;
     else if (p.kind === "research") nResearch++;
     else nComplaint++;
@@ -221,8 +237,9 @@ function render(posts){
     let html = '<h3><a href="https://github.com/mehuyu214/' + r.name + '">' + r.name + '</a></h3>' +
       '<p class="desc">' + r.desc + '</p>';
     if (r.live) html += '<p class="live">🌐 公開サイト: <a href="' + r.live + '">' + r.live + '</a></p>';
-    html += countLine(list) + itemsHtml(list) + formHtml(r.name);
+    html += countLine(list) + itemsHtml(list);
     card.innerHTML = html;
+    card.appendChild(buildForm(r.name));
     grid.appendChild(card);
   });
   gridExtra.innerHTML = "";
@@ -243,18 +260,40 @@ function render(posts){
     const list = extra[name].slice().sort((a,b) => b.created_at - a.created_at);
     const card = document.createElement("div");
     card.className = "card";
-    card.innerHTML = '<h3>' + esc(name) + '</h3>' + countLine(list) + itemsHtml(list) + formHtml(name);
+    card.innerHTML = '<h3>' + esc(name) + '</h3>' + countLine(list) + itemsHtml(list);
+    card.appendChild(buildForm(name));
     gridExtra.appendChild(card);
   });
   wireUp(grid);
   wireUp(gridExtra);
 }
+function showLoadError(msg){
+  // エラーは totals（件数表示）とは別の要素に出す。render() の件数更新に
+  // 上書きされて「空のボード」に見える事態を防ぎ、取得済みの一覧も残す。
+  loadStatus.innerHTML = "";
+  const span = document.createElement("span");
+  span.textContent = "⚠️ " + msg;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "再試行";
+  btn.addEventListener("click", load);
+  loadStatus.appendChild(span);
+  loadStatus.appendChild(btn);
+  loadStatus.hidden = false;
+}
+function clearLoadError(){
+  loadStatus.hidden = true;
+  loadStatus.innerHTML = "";
+}
 function load(){
-  totals.innerHTML = '<span class="chip">読み込み中…</span>';
+  if (!hasLoaded) totals.innerHTML = '<span class="chip">読み込み中…</span>';
   fetch(API + "/posts", {headers:{"Accept":"application/json"}})
     .then(res => res.json())
-    .then(data => { if (data && Array.isArray(data.posts)) render(data.posts); else { totals.innerHTML = '<span class="chip">読み込み失敗</span>'; render([]); } })
-    .catch(() => { totals.innerHTML = '<span class="chip">読み込み失敗（API未応答）</span>'; render([]); });
+    .then(data => {
+      if (data && Array.isArray(data.posts)) { clearLoadError(); render(data.posts); }
+      else showLoadError("読み込み失敗（不正な応答）");
+    })
+    .catch(() => { showLoadError("読み込み失敗（API未応答）"); });
 }
 document.getElementById("refresh").addEventListener("click", load);
 load();
