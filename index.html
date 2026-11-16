@@ -28,7 +28,9 @@
   .live{font-size:13px;margin:0 0 10px}
   .count{font-size:13px;color:var(--muted);margin-bottom:8px}
   .items{list-style:none;margin:0 0 12px;padding:0}
-  .items li{border-top:1px solid var(--border);padding:8px 0;font-size:14px}
+  .items li{border-top:1px solid var(--border);padding:8px 0;font-size:14px;display:flex;flex-direction:column}
+  .items .badges{order:-1}
+  .items h4.ttl{font-size:14px;font-weight:600;margin:0}
   .body{color:var(--muted);font-size:13px;white-space:pre-wrap;margin-top:2px;word-break:break-word}
   .badge{display:inline-block;border-radius:999px;padding:0 9px;font-size:12px;margin-right:6px;border:1px solid;white-space:nowrap}
   .type-complaint{color:var(--complaint);border-color:var(--complaint)}
@@ -128,9 +130,10 @@ function itemsHtml(list){
   if (list.length === 0) return '<div class="empty">まだ文句も提案もなし</div>';
   let html = '<ul class="items">';
   list.forEach(p => {
-    html += '<li>' + kindBadge(p.kind) + statusBadge(p.status) + esc(p.title) +
-      '<div class="body">' + esc(p.body) + '</div>' +
+    html += '<li>' + '<h4 class="ttl">' + esc(p.title) + '</h4>' +
       '<div class="meta">' + esc(p.author) + ' ・ ' + new Date(p.created_at).toLocaleDateString("ja-JP") + '</div>' +
+      '<div class="badges">' + kindBadge(p.kind) + statusBadge(p.status) + '</div>' +
+      '<div class="body">' + esc(p.body) + '</div>' +
       (p.file ? '<div class="meta">📎 <a href="' + API + '/posts/' + p.id + '/file" target="_blank" rel="noopener">' + esc(p.file.name) + '</a>（' + p.file.size + ' バイト）</div>' : '') +
       '<div class="ops">' +
       (p.status !== "対応中" ? '<button data-act="doing" data-id="' + p.id + '">対応中にする</button>' : '') +
